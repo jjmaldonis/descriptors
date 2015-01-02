@@ -21,8 +21,10 @@ CONTAINS
         do i=1,different_types
             chi_square = chi_square + (vpsim(i) - vpexp(i))**2/vpexp(i)
         enddo
-        chi_square = chi_square/different_types
-        chi_square = chi_square + vpsim(different_types+1)
+        !chi_square = chi_square/(different_types+1) ! Commenting this because I
+        ! don't want to penalize for not having the exact amount of "others". It
+        ! is okay for the "others" be in a different category.
+        chi_square = chi_square + vpsim(different_types+2)/(different_types+1)*3.0 ! Weight the "bad" atoms as 3 times as bad to have
     end function chi_square
 
     function check_cutoffs(m,cutoff_r,moved_atom)

@@ -21,7 +21,7 @@ module vor_mod
     integer, save :: nloop(maxepf,maxcan),nepf(maxcan) ! check connection
     integer, save :: mvijk(maxver,3)
     integer, save :: nc, nv, ne, nf ! # of candidates,vertices,edges,faces
-    integer, save :: natoms
+    integer, save :: natoms, nlines
     integer, save :: different_types
 
     contains
@@ -332,6 +332,33 @@ module vor_mod
         enddo
     end subroutine vpindex
 
+  SUBROUTINE GetLine(unit, line, stat, iomsg)   
+    USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: IOSTAT_EOR   
+    !---------------------------------------------------------------------------
+    ! Arguments   
+    INTEGER, INTENT(IN) :: unit
+    CHARACTER(len=256), INTENT(OUT) :: line
+    INTEGER, INTENT(OUT) :: stat
+    CHARACTER(*), INTENT(OUT) :: iomsg   
+    !---------------------------------------------------------------------------
+    ! Local variables   
+    ! Buffer to read the line (or partial line).
+    CHARACTER(256) :: buffer   
+    INTEGER :: size           ! Number of characters read from the file.   
+    !***************************************************************************   
+    line = ''
+    DO
+      READ (unit, "(A)", ADVANCE='NO', IOSTAT=stat, IOMSG=iomsg, SIZE=size)  &
+          buffer
+      IF (stat > 0) RETURN      ! Some sort of error.
+      line = line // buffer(:size)
+      IF (stat < 0) THEN
+        IF (stat == IOSTAT_EOR) stat = 0
+        RETURN
+      END IF
+    END DO   
+  END SUBROUTINE GetLine
+
     subroutine group_indexes_from_paramfile(paramfile)
         implicit none
         !character (len=*), intent(in) :: paramfile
@@ -339,16 +366,28 @@ module vor_mod
         integer :: i, j, k, ii
         integer, allocatable, dimension(:,:) :: temp_types
         logical :: found
+        integer :: stat
+        CHARACTER (len=256) :: line, iomsg
 
         allocate(temp_types(natoms,8))
         open(12,file=trim(paramfile),form='formatted',status='unknown')
-        do i=1, natoms
+
+        ii = 0
+        do while(.true.)
+            call GetLine(12,line,stat,iomsg)
+            if(stat < 0) exit
+            ii = ii + 1
+        enddo
+        rewind(12)
+
+        nlines = ii
+        do i=1, nlines
             read(12, *) temp_types(i,:)
         enddo
         close(12)
 
         different_types = 1
-        do i=2, natoms ! skip the first index, we know its unique
+        do i=2, nlines! skip the first index, we know its unique
             found = .false.
             do k=1, i-1
                 found = .true.
@@ -362,15 +401,15 @@ module vor_mod
         write(*,*) "Diff types:", different_types
         allocate(types(different_types,8))
         types = 0
-        allocate(numtypes(different_types+1)) ! The extra spot is for bad atoms and other indexes not in types
+        allocate(numtypes(different_types+2)) ! The first extra spot is for other indexes not in types, the second is for bad atoms
         numtypes = 0
-        allocate(numtypes_sim(different_types+1))
+        allocate(numtypes_sim(different_types+2))
         numtypes_sim = 0
         ii = 1
         do j=1,8
             types(ii,j) = temp_types(1,j)
         enddo
-        do i=2, natoms ! skip the first index, we know its unique
+        do i=2, nlines! skip the first index, we know its unique
             found = .false.
             do k=1, i-1
                 found = .true.
@@ -388,17 +427,21 @@ module vor_mod
         enddo
 
         do i=1, natoms
-            do k=1, different_types
-                found = .true.
-                do j=1, 8
-                    if( temp_types(i,j) .ne. types(k,j) ) found = .false.
-                enddo
-                if(found) exit
-            enddo
-            if(found) then
-                numtypes(k) = numtypes(k) + 1
+            if(bad(i)) then
+                numtypes(different_types+2) = numtypes(different_types+2) + 1
             else
-                numtypes(different_types+1) = numtypes(different_types+1) + 1
+                do k=1, different_types
+                    found = .true.
+                    do j=1, 8
+                        if( temp_types(i,j) .ne. types(k,j) ) found = .false.
+                    enddo
+                    if(found) exit
+                enddo
+                if(found) then
+                    numtypes(k) = numtypes(k) + 1
+                else
+                    numtypes(different_types+1) = numtypes(different_types+1) + 1
+                endif
             endif
         enddo
 
@@ -417,17 +460,21 @@ module vor_mod
             numtypes_sim(k) = 0
         enddo
         do i=1, natoms
-            do k=1, different_types
-                found = .true.
-                do j=1, 8
-                    if( indexes(i,j) .ne. types(k,j) ) found = .false.
-                enddo
-                if(found) exit
-            enddo
-            if(found) then
-                numtypes_sim(k) = numtypes_sim(k) + 1
+            if(bad(i)) then
+                numtypes(different_types+2) = numtypes(different_types+2) + 1
             else
-                numtypes_sim(different_types+1) = numtypes_sim(different_types+1) + 1
+                do k=1, different_types
+                    found = .true.
+                    do j=1, 8
+                        if( indexes(i,j) .ne. types(k,j) ) found = .false.
+                    enddo
+                    if(found) exit
+                enddo
+                if(found) then
+                    numtypes_sim(k) = numtypes_sim(k) + 1
+                else
+                    numtypes_sim(different_types+1) = numtypes_sim(different_types+1) + 1
+                endif
             endif
         enddo
         !do k=1,different_types

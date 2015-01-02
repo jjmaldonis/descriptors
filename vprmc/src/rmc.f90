@@ -174,11 +174,12 @@ endif
     call lammps_command (lmp, 'run 0')
     call lammps_extract_compute (te1, lmp, 'pot', 0, 0)
 #else
-    !call read_eam(m,eam_filename)
-    !call eam_initial(m,te1)
+    eam_filename = 'ZrCuAl2011.eam.alloy'
+    call read_eam(m,eam_filename)
+    call eam_initial(m,te1)
 #endif
-    !te1 = te1/m%natoms
-    !if(myid .eq. 0) write(*,*) "Energy = ", te1
+    te1 = te1/m%natoms
+    if(myid .eq. 0) write(*,*) "Energy = ", te1
 
 
     ! Calculate VP for every atom
@@ -188,7 +189,7 @@ endif
         call vp_atom(m, i, cutoff)
     enddo
     call group_indexes
-    !call check_neighs(m,cutoff)
+    call check_neighs(m,cutoff)
 
     t1 = omp_get_wtime()
 
@@ -202,9 +203,9 @@ endif
         chi2_no_energy = chi_square(numtypes, numtypes_sim)
 
         chi2_initial = chi2_no_energy
-        chi2_old = chi2_no_energy! + te1
+        chi2_old = chi2_no_energy + te1
 #ifndef USE_LMP
-        !e2 = e1 ! eam
+        e2 = e1 ! eam
 #endif
 
         i=0!step_start
@@ -213,7 +214,7 @@ endif
             write(*,*) "Initialization complete. Starting Monte Carlo."
             write(*,*) "Initial Conditions:"
             write(*,*) "   Step =       ", i
-            !write(*,*) "   Energy =     ", te1
+            write(*,*) "   Energy =     ", te1
             write(*,*) "   LSqF V(k) =  ", chi2_no_energy
             write(*,*) "   Temperature =", temperature
             write(*,*) "   Max Move=", max_move
@@ -228,7 +229,7 @@ endif
 #endif
             open(36,file=trim(chi_squared_file),form='formatted',status='unknown')
                 write(36,*) "step, chi2, energy"
-                write(36,*) i, chi2_no_energy!, te1
+                write(36,*) i, chi2_no_energy, te1
             close(36)
             open(37,file=trim(acceptance_rate_fn),form='formatted',status='unknown',access='append')
                 write(37,*) "step, acceptance rate averaged over last 1000 steps"
@@ -275,9 +276,9 @@ endif
             call lammps_command (lmp, 'run 0')
             call lammps_extract_compute (te2, lmp, 'pot', 0, 0)
 #else
-            !call eam_mc(m, w, xx_cur, yy_cur, zz_cur, xx_new, yy_new, zz_new, te2)
+            call eam_mc(m, w, xx_cur, yy_cur, zz_cur, xx_new, yy_new, zz_new, te2)
 #endif
-            !te2 = te2/m%natoms
+            te2 = te2/m%natoms
             !if(myid .eq. 0) write(*,*) "Energy = ", te2
 
             ! Calculate a randnum for accept/reject
@@ -348,12 +349,12 @@ endif
 
             chi2_no_energy = chi_square(numtypes, numtypes_sim)
 
-            chi2_new = chi2_no_energy! + te2
+            chi2_new = chi2_no_energy + te2
             del_chi = chi2_new - chi2_old
             call mpi_bcast(del_chi, 1, mpi_double, 0, mpi_comm_world, mpierr)
 
-            !if(myid .eq. 0) write(*,*) "Energy = ", te2
-            !if(myid .eq. 0) write(*,*) "Del-V(k) = ", chi2_no_energy
+            if(myid .eq. 0) write(*,*) "Energy = ", te2
+            if(myid .eq. 0) write(*,*) "Del-V(k) = ", chi2_no_energy
             if(myid .eq. 0) write(*,*) "chi2_old = ", chi2_old
             if(myid .eq. 0) write(*,*) "chi2_new = ", chi2_new
             if(myid .eq. 0) write(*,*) "Del-chi = ", del_chi
@@ -363,7 +364,7 @@ endif
             if(del_chi <0.0)then
                 ! Accept the move
 #ifndef USE_LMP
-                !e1 = e2 ! eam
+                e1 = e2 ! eam
 #endif
                 chi2_old = chi2_new
                 accepted = .true.
@@ -374,7 +375,7 @@ endif
                 if(log(1.-randnum)<-del_chi*beta)then
                     ! Accept move
 #ifndef USE_LMP
-                    !e1 = e2 ! eam
+                    e1 = e2 ! eam
 #endif
                     chi2_old = chi2_new
                     accepted = .true.
@@ -443,7 +444,7 @@ endif
                     !call print_index(w)
                     !write(*,*) 'CN:',w,sum(indexes(w,:)),nneighs(w)
 #ifndef USE_LMP
-                    !e2 = e1 ! eam
+                    e2 = e1 ! eam
 #else
                     write(lmp_cmd_str, "(A9, I4, A3, F, A3, F, A3, F)") "set atom ", w, " x ", xx_cur, " y ", yy_cur, " z ", zz_cur
                     call lammps_command(lmp, trim(lmp_cmd_str))
@@ -465,7 +466,7 @@ endif
 
             ! Periodically save data.
             if(myid .eq. 0) then
-            if(mod(i,1000)==0)then
+            if(mod(i,2000)==0)then
                 ! Write to vk_update ERROR HERE - if the most recent move was
                 ! rejected then this will print the incorrect vk. TODO
                 !write(vku_fn, "(A9)") "vk_update"
