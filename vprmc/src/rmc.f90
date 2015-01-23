@@ -253,12 +253,6 @@ endif
 
             if(myid .eq. 0) write(*,*) "Starting step", i
 
-            if( i > 4) then
-                if(myid .eq. 0) write(*,*) "STOPPING MC AFTER 100 STEPS"
-                call mpi_finalize(mpierr)
-                stop ! Stop after 100 steps for timing runs.
-            endif
-
 #ifdef TIMING
             if( i > 100) then
                 if(myid .eq. 0) write(*,*) "STOPPING MC AFTER 100 STEPS"
