@@ -364,12 +364,14 @@ module vor_mod
         !character (len=*), intent(in) :: paramfile
         character (len=*) :: paramfile
         integer :: i, j, k, ii
+        integer :: others ! number of "others"
+        integer :: paramfile_natoms
+        real :: multiplier
         integer, allocatable, dimension(:,:) :: temp_types
         logical :: found
         integer :: stat
         CHARACTER (len=256) :: line, iomsg
 
-        allocate(temp_types(natoms,8))
         open(12,file=trim(paramfile),form='formatted',status='unknown')
 
         ii = 0
@@ -380,70 +382,30 @@ module vor_mod
         enddo
         rewind(12)
 
-        nlines = ii
-        do i=1, nlines
-            read(12, *) temp_types(i,:)
+        ! Allocation
+        different_types = ii -1
+        write(*,*) "Diff types:", different_types
+        allocate(types(different_types,8))
+        types = 0 ! This is a 2D array
+        allocate(numtypes(different_types+2)) ! The first extra spot is for other indexes not in types, the second is for bad atoms
+        numtypes = 0 ! This is an array
+        allocate(numtypes_sim(different_types+2))
+        numtypes_sim = 0 ! This is an array
+
+        read(12,*) paramfile_natoms, others
+        others = paramfile_natoms-others
+        multiplier = natoms/paramfile_natoms
+        write(*,*) "The multiplier for number of atoms in the modelfile to number of atoms used to generate the paramfile is",multiplier
+
+        numtypes(different_types+1) = others*multiplier
+
+        do i=1, different_types
+            read(12, *) numtypes(i), types(i,:)
+            numtypes(i) = numtypes(i) * multiplier
         enddo
         close(12)
 
-        different_types = 1
-        do i=2, nlines! skip the first index, we know its unique
-            found = .false.
-            do k=1, i-1
-                found = .true.
-                do j=1, 8
-                    if( temp_types(i,j) .ne. temp_types(k,j) ) found = .false.
-                enddo
-                if(found) exit
-            enddo
-            if(.not. found) different_types = different_types + 1
-        enddo
-        write(*,*) "Diff types:", different_types
-        allocate(types(different_types,8))
-        types = 0
-        allocate(numtypes(different_types+2)) ! The first extra spot is for other indexes not in types, the second is for bad atoms
-        numtypes = 0
-        allocate(numtypes_sim(different_types+2))
-        numtypes_sim = 0
-        ii = 1
-        do j=1,8
-            types(ii,j) = temp_types(1,j)
-        enddo
-        do i=2, nlines! skip the first index, we know its unique
-            found = .false.
-            do k=1, i-1
-                found = .true.
-                do j=1, 8
-                    if( temp_types(i,j) .ne. temp_types(k,j) ) found = .false.
-                enddo
-                if(found) exit
-            enddo
-            if(.not. found) then
-                ii = ii + 1
-                do j=1, 8
-                    types(ii,j) = temp_types(i,j)
-                enddo
-            endif
-        enddo
-
-        do i=1, natoms
-            if(bad(i)) then
-                numtypes(different_types+2) = numtypes(different_types+2) + 1
-            else
-                do k=1, different_types
-                    found = .true.
-                    do j=1, 8
-                        if( temp_types(i,j) .ne. types(k,j) ) found = .false.
-                    enddo
-                    if(found) exit
-                enddo
-                if(found) then
-                    numtypes(k) = numtypes(k) + 1
-                else
-                    numtypes(different_types+1) = numtypes(different_types+1) + 1
-                endif
-            endif
-        enddo
+        write(*,*) numtypes
 
         !do k=1,different_types
         !    write(*,'(I4,A3,8I3)') numtypes(k), '   ', types(k,:)

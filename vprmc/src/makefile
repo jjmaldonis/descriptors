@@ -3,7 +3,7 @@
 
 APP = ../rmc
 
-SRC = ran2.f90 globals.f90 read_inputs_v2.f90 model_v2.f90 rmc_functions.f90 eam.f90 vor_v5.f90 rmc.f90
+SRC = ran2.f90 globals.f90 read_inputs_v2.f90 model_v2.f90 vor_v5.f90 rmc_functions.f90 eam.f90 rmc.f90
 #SRC = ran2.f90 globals.f90 read_inputs_v2.f90 model_v2.f90 eam.f90 vor_v5.f90
 OBJ = $(addsuffix .o, $(basename $(SRC)))
 

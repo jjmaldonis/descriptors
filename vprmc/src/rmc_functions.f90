@@ -13,18 +13,33 @@ MODULE rmc_functions
 
 CONTAINS
 
-    function chi_square(vpexp, vpsim)
+    function chi_square(alpha,vpexp, vpsim)
         integer, allocatable, dimension(:) :: vpexp, vpsim
-        integer :: i
+        real, intent(in) :: alpha
+        integer :: i, valexp, valsim, others
         double precision :: chi_square
         chi_square=0.0
+        !vpexp = vpexp*8
+
+        others = vpsim(different_types+1)
         do i=1,different_types
-            chi_square = chi_square + (vpsim(i) - vpexp(i))**2/vpexp(i)
+            valsim = vpsim(i)
+            valexp = vpexp(i)
+            if(valsim > valexp) then
+                others = others + (valsim-valexp)
+                valsim = valexp
+            endif
+            chi_square = chi_square + (valsim - valexp)**2/sqrt(float(vpexp(i)))
+            !write(*,*) i, chi_square
         enddo
+        chi_square = chi_square + (others-vpexp(different_types+1))**2/sqrt(float(vpexp(different_types+1))) ! This is for "others", ignore the stuff below
+
         !chi_square = chi_square/(different_types+1) ! Commenting this because I
         ! don't want to penalize for not having the exact amount of "others". It
         ! is okay for the "others" be in a different category.
+
         chi_square = chi_square + vpsim(different_types+2)/(different_types+1)*3.0 ! Weight the "bad" atoms as 3 times as bad to have
+        chi_square = chi_square * alpha
     end function chi_square
 
     function check_cutoffs(m,cutoff_r,moved_atom)

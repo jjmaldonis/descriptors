@@ -121,6 +121,9 @@ if(myid .eq. 0) then
         error stop "istat for modelfile get_command_arg was nonzero"
     end if
     model_filename = trim(model_filename)
+    write(*,*) "Modelfile:", model_filename
+    write(*,*) "Paramfile:", paramfile
+    write(*,*) "JobID:", jobID
 
     ! Set output filenames.
     outbase = ""
@@ -143,6 +146,7 @@ endif
     ! Set input filenames.
     !param_filename = 'param_file.in'
     call mpi_bcast(paramfile, 256, MPI_CHARACTER, 0, mpi_comm_world, mpierr)
+    call mpi_bcast(model_filename, 256, MPI_CHARACTER, 0, mpi_comm_world, mpierr)
     
     ! Start timer.
     t0 = omp_get_wtime()
@@ -157,8 +161,9 @@ endif
     allocate(cutoff_r(m%nelements,m%nelements),stat=istat)
     cutoff_r = 2.272
     !call read_inputs(param_filename,model_filename, eam_filename, step_start, temperature, max_move, cutoff_r, alpha, vk_exp, k, vk_exp_err, v_background, ntheta, nphi, npsi, scale_fac_initial, Q, status2)
-    temperature = 20000 ! temperature*(sqrt(0.7)**(step_start/200000))
+    temperature = 86.5 ! temperature*(sqrt(0.7)**(step_start/200000))
     max_move = 1.5 !max_move*(sqrt(0.94)**(step_start/200000))
+    alpha = 0.00025
 
     if(myid .eq. 0) then
     write(*,*) "Model filename: ", trim(model_filename)
@@ -200,7 +205,7 @@ endif
     if(use_rmc) then ! End here if we only want femsim. Set the variable above.
 
         ! Calculate initial chi2
-        chi2_no_energy = chi_square(numtypes, numtypes_sim)
+        chi2_no_energy = chi_square(alpha,numtypes, numtypes_sim)
 
         chi2_initial = chi2_no_energy
         chi2_old = chi2_no_energy + te1
@@ -247,6 +252,12 @@ endif
 #endif
 
             if(myid .eq. 0) write(*,*) "Starting step", i
+
+            if( i > 4) then
+                if(myid .eq. 0) write(*,*) "STOPPING MC AFTER 100 STEPS"
+                call mpi_finalize(mpierr)
+                stop ! Stop after 100 steps for timing runs.
+            endif
 
 #ifdef TIMING
             if( i > 100) then
@@ -347,18 +358,19 @@ endif
             !write(*,*) neighs(w,:)
             !write(*,*) 'CN:',w,sum(indexes(w,:)),nneighs(w)
 
-            chi2_no_energy = chi_square(numtypes, numtypes_sim)
+            chi2_no_energy = chi_square(alpha,numtypes, numtypes_sim)
 
             chi2_new = chi2_no_energy + te2
             del_chi = chi2_new - chi2_old
             call mpi_bcast(del_chi, 1, mpi_double, 0, mpi_comm_world, mpierr)
 
             if(myid .eq. 0) write(*,*) "Energy = ", te2
-            if(myid .eq. 0) write(*,*) "Del-V(k) = ", chi2_no_energy
-            if(myid .eq. 0) write(*,*) "chi2_old = ", chi2_old
-            if(myid .eq. 0) write(*,*) "chi2_new = ", chi2_new
-            if(myid .eq. 0) write(*,*) "Del-chi = ", del_chi
-            if(myid .eq. 0) write(*,*) "Bad/others = ", numtypes_sim(different_types+1)
+            if(myid .eq. 0) write(*,*) "LSqF V(k) = ", chi2_no_energy
+            if(myid .eq. 0) write(*,*) "cf_old = ", chi2_old
+            if(myid .eq. 0) write(*,*) "cf_new = ", chi2_new
+            if(myid .eq. 0) write(*,*) "Del-cf = ", del_chi
+            if(myid .eq. 0) write(*,*) "Others = ", numtypes_sim(different_types+1)
+            if(myid .eq. 0) write(*,*) "Bad = ", numtypes_sim(different_types+2)
 
             ! Test if the move should be accepted or rejected based on del_chi
             if(del_chi <0.0)then
@@ -533,8 +545,8 @@ endif
             endif
             endif ! myid == 0
 
-            ! Every 200,000 steps lower the temp, max_move, and reset beta.
-            if(mod(i,200000)==0)then
+            ! Every 400,000 steps lower the temp, max_move, and reset beta.
+            if(mod(i,400000)==0)then
                 temperature = temperature * sqrt(0.7)
                 if(myid.eq.0) write(*,*) "Lowering temp to", temperature, "at step", i
                 max_move = max_move * sqrt(0.94)
