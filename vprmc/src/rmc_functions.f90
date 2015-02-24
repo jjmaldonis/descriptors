@@ -21,18 +21,19 @@ CONTAINS
         chi_square=0.0
         !vpexp = vpexp*8
 
-        others = vpsim(different_types+1)
+        !others = vpsim(different_types+1)
         do i=1,different_types
-            valsim = vpsim(i)
-            valexp = vpexp(i)
-            if(valsim > valexp) then
-                others = others + (valsim-valexp)
-                valsim = valexp
-            endif
-            chi_square = chi_square + (valsim - valexp)**2/sqrt(float(vpexp(i)))
+            !valsim = vpsim(i)
+            !valexp = vpexp(i)
+            !if(valsim > valexp) then
+            !    others = others + (valsim-valexp)
+            !    valsim = valexp
+            !endif
+            !chi_square = chi_square + (valsim - valexp)**2/sqrt(float(vpexp(i)))
             !write(*,*) i, chi_square
+            chi_square = chi_square + (vpsim(i) - vpexp(i))**2/sqrt(float(vpexp(i)))
         enddo
-        chi_square = chi_square + (others-vpexp(different_types+1))**2/sqrt(float(vpexp(different_types+1))) ! This is for "others", ignore the stuff below
+        !chi_square = chi_square + (others-vpexp(different_types+1))**2/sqrt(float(vpexp(different_types+1))) ! This is for "others", ignore the stuff below
 
         !chi_square = chi_square/(different_types+1) ! Commenting this because I
         ! don't want to penalize for not having the exact amount of "others". It
